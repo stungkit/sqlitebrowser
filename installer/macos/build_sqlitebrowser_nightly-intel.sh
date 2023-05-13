@@ -115,7 +115,7 @@ if [ -f "build/DB\ Browser\ for\ SQLite\ Nightly.app/Contents/Extensions/formats
   install_name_tool -id "@executable_path/../Extensions/formats.dylib" build/DB\ Browser\ for\ SQLite\ Nightly.app/Contents/Extensions/formats.dylib >>$LOG 2>&1
   ln -s formats.dylib build/DB\ Browser\ for\ SQLite\ Nightly.app/Contents/Extensions/formats.dylib.dylib >>$LOG 2>&1
 else
-  echo "Formats extension does not seem to have compiled ok"
+  echo "Formats extension does not seem to have compiled ok" >>$LOG 2>&1
 fi
 
 # math extension
@@ -124,7 +124,7 @@ if [ -f "build/DB\ Browser\ for\ SQLite\ Nightly.app/Contents/Extensions/math.dy
   install_name_tool -id "@executable_path/../Extensions/math.dylib" build/DB\ Browser\ for\ SQLite\ Nightly.app/Contents/Extensions/math.dylib >>$LOG 2>&1
   ln -s math.dylib build/DB\ Browser\ for\ SQLite\ Nightly.app/Contents/Extensions/math.dylib.dylib >>$LOG 2>&1
 else
-  echo "Math extension does not seem to have compiled ok"
+  echo "Math extension does not seem to have compiled ok" >>$LOG 2>&1
 fi
 
 # fileio.c extension
@@ -136,7 +136,7 @@ if [ -f "build/DB\ Browser\ for\ SQLite\ Nightly.app/Contents/Extensions/fileio.
   install_name_tool -id "@executable_path/../Extensions/fileio.dylib" build/DB\ Browser\ for\ SQLite\ Nightly.app/Contents/Extensions/fileio.dylib >>$LOG 2>&1
   ln -s fileio.dylib build/DB\ Browser\ for\ SQLite\ Nightly.app/Contents/Extensions/fileio.dylib.dylib >>$LOG 2>&1
 else
-  echo "Fileio extension does not seem to have compiled ok"
+  echo "Fileio extension does not seem to have compiled ok" >>$LOG 2>&1
 fi
 
 # Copy the license files to the .dmg
@@ -250,7 +250,7 @@ if [ -f "build/DB\ Browser\ for\ SQLite\ Nightly.app/Contents/Extensions/formats
   install_name_tool -change "/usr/local/opt/sqlcipherdb4s/lib/libsqlcipher.0.dylib" "@executable_path/../Frameworks/libsqlcipher.0.dylib" build/DB\ Browser\ for\ SQLCipher\ Nightly.app/Contents/Extensions/formats.dylib >>$LOG 2>&1
   ln -s formats.dylib build/DB\ Browser\ for\ SQLCipher\ Nightly.app/Contents/Extensions/formats.dylib.dylib >>$LOG 2>&1
 else
-  echo "Formats extension does not seem to have compiled ok"
+  echo "Formats extension does not seem to have compiled ok" >>$LOG 2>&1
 fi
 
 # math extension
@@ -260,7 +260,7 @@ if [ -f "build/DB\ Browser\ for\ SQLite\ Nightly.app/Contents/Extensions/math.dy
   install_name_tool -change "/usr/local/opt/sqlcipherdb4s/lib/libsqlcipher.0.dylib" "@executable_path/../Frameworks/libsqlcipher.0.dylib" build/DB\ Browser\ for\ SQLCipher\ Nightly.app/Contents/Extensions/math.dylib >>$LOG 2>&1
   ln -s math.dylib build/DB\ Browser\ for\ SQLCipher\ Nightly.app/Contents/Extensions/math.dylib.dylib >>$LOG 2>&1
 else
-  echo "Math extension does not seem to have compiled ok"
+  echo "Math extension does not seem to have compiled ok" >>$LOG 2>&1
 fi
 
 # fileio.c extension
@@ -273,7 +273,7 @@ if [ -f "build/DB\ Browser\ for\ SQLite\ Nightly.app/Contents/Extensions/fileio.
   install_name_tool -change "/usr/local/opt/sqlcipherdb4s/lib/libsqlcipher.0.dylib" "@executable_path/../Frameworks/libsqlcipher.0.dylib" build/DB\ Browser\ for\ SQLCipher\ Nightly.app/Contents/Extensions/fileio.dylib >>$LOG 2>&1
   ln -s fileio.dylib build/DB\ Browser\ for\ SQLCipher\ Nightly.app/Contents/Extensions/fileio.dylib.dylib >>$LOG 2>&1
 else
-  echo "Fileio extension does not seem to have compiled ok"
+  echo "Fileio extension does not seem to have compiled ok" >>$LOG 2>&1
 fi
 
 # Copy the license files to the .dmg
