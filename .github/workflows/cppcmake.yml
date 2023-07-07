@@ -71,20 +71,15 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [macos-12]
+        os: [macos-13-self_hosted]
         sqlcipher: ["0", "1"]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Install dependencies
-        run : |
-          unset HOMEBREW_NO_INSTALL_FROM_API; brew untap homebrew/core; brew untap homebrew/cask; brew update
-          brew tap sqlitebrowser/sqlite3
-          brew install cmake qt@5 sqlitefts5
-          if [ "${{ matrix.sqlcipher }}" = "1" ]; then
-            brew install sqlcipherdb4s
-          fi
-          brew link sqlitefts5 --force
+      - name: Change prefix in CMakeLists.txt
+        run: |
+          sed -i '' 's|/opt/homebrew/opt/qt5|/opt/homebrew/opt/db4sqtub@5|g' CMakeLists.txt
+          sed -i '' 's|/opt/homebrew/opt/sqlitefts5|/opt/homebrew/opt/db4ssqliteftsub@5|g' CMakeLists.txt
       - name: Configure Build
         env:
           IS_SQLCIPHER: ${{ matrix.sqlcipher }}
@@ -95,27 +90,25 @@ jobs:
             sed -i "" 's/"DB Browser for SQLite"/"DB Browser for SQLite-dev-'$(git rev-parse --short --verify HEAD)'"/' CMakeLists.txt
           fi
           mkdir build && cd build
-          cmake -DCMAKE_PREFIX_PATH=/usr/local/opt/qt@5 -Dsqlcipher=${{ matrix.sqlcipher }} ..
+          if [ "${{ matrix.sqlcipher }}" = "1" ]; then
+            cmake -G Ninja -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -Dsqlcipher=1 -DSQLCIPHER_INCLUDE_DIR=/opt/homebrew/include -DSQLCIPHER_LIBRARY=/opt/homebrew/opt/db4ssqlcipherub/lib/libsqlcipher.0.dylib ..
+          else
+            cmake -G Ninja -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" ..
+          fi
       - name: Build
         working-directory: ./build
-        run: make -j3
+        run: ninja
       - name: Build extensions
         run: |
-          clang -I /usr/local/opt/sqlitefts5/include -L /usr/local/opt/sqlitefts5/lib -fno-common -dynamiclib src/extensions/extension-formats.c
-          clang -I /usr/local/opt/sqlitefts5/include -L /usr/local/opt/sqlitefts5/lib -fno-common -dynamiclib src/extensions/extension-functions.c
+          clang -I /opt/homebrew/opt/db4ssqliteftsub@5/include -L /opt/homebrew/opt/db4ssqliteftsub@5/lib -fno-common -dynamiclib src/extensions/extension-formats.c
+          clang -I /opt/homebrew/opt/db4ssqliteftsub@5/include -L /opt/homebrew/opt/db4ssqliteftsub@5/lib -fno-common -dynamiclib src/extensions/extension-functions.c
           curl -L -o src/extensions/fileio.c 'https://sqlite.org/src/raw?filename=ext/misc/fileio.c&ci=trunk'
           curl -L -o src/extensions/test_windirect.c 'https://sqlite.org/src/raw?filename=src/test_windirent.c&ci=trunk'
           curl -L -o src/extensions/test_windirect.h 'https://sqlite.org/src/raw?filename=src/test_windirent.h&ci=trunk'
-          clang -I /usr/local/opt/sqlitfts5/include -L /usr/local/opt/sqlitefts5/lib -fno-common -dynamiclib src/extensions/fileio.c src/extensions/test_windirect.c
-      - name: Archiving app bundle
+          clang -I /opt/homebrew/opt/db4ssqliteftsub@5/include -L /opt/homebrew/opt/db4ssqliteftsub@5/lib -fno-common -dynamiclib src/extensions/fileio.c src/extensions/test_windirect.c
+      - name: Move app bundle to temp folder
         if: github.event_name != 'pull_request'
-        run: ditto -c -k --sequesterRsrc --keepParent build/*.app archive.zip
-      - name: Upload archived app bundle
-        if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v3
-        with:
-          name: app-bundle-${{ matrix.sqlcipher }}
-          path: archive.zip
+        run: mv build/*.app /tmp/sqlitebrowser
   notarization-macos:
     if: github.event_name != 'pull_request'
     needs: build-macos
@@ -123,60 +116,28 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-12]
+        os: [macos-13-self_hosted]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Install dependencies
-        run : |
-          unset HOMEBREW_NO_INSTALL_FROM_API; brew untap homebrew/core; brew untap homebrew/cask; brew update
-          brew tap sqlitebrowser/sqlite3
-          brew install qt@5 sqlitefts5 sqlcipherdb4s
-          brew reinstall node
-          brew link sqlitefts5 --force
-          npm install -g appdmg
-      - name: Download archived app bundle (SQLite)
-        uses: actions/download-artifact@v3
-        with:
-          name: app-bundle-0
-          path: archive
-      - name: Download archived app bundle (SQLCipher)
-        uses: actions/download-artifact@v3
-        with:
-          name: app-bundle-1
-          path: archive-sqlcipher
-      - name: Dearchive app bundle
-        run: |
-          ditto -x -k archive/archive.zip build/
-          ditto -x -k archive-sqlcipher/archive.zip build/
-      - name: Install the Apple certificate
+      - name: Get app bundle from temp folder
+        run: mkdir build && mv /tmp/sqlitebrowser/*.app build/
+      - name: Unlock keychain
         env:
-          P12: ${{ secrets.MACOS_CODESIGN_P12 }}
-          P12_PW: ${{ secrets.MACOS_CODESIGN_P12_PW }}
+          KEYCHAIN_PATH: ${{ secrets.MACOS_CODESIGN_KEYCHAIN_PATH }}
           KEYCHAIN_PW: ${{ secrets.MACOS_CODESIGN_KEYCHAIN_PW }}
-        run: |
-          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-
-          echo -n "$P12" | base64 --decode -o $CERTIFICATE_PATH
-
-          security create-keychain -p "$KEYCHAIN_PW" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "$KEYCHAIN_PW" $KEYCHAIN_PATH
-
-          security import $CERTIFICATE_PATH -P "$P12_PW" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
+        run: security unlock-keychain -p "$KEYCHAIN_PW" $KEYCHAIN_PATH && security list-keychain -d user -s $KEYCHAIN_PATH
       - name: Include the dependencies in the app bundle
         env:
           DEV_ID: ${{ secrets.MACOS_CODESIGN_DEV_ID}}
-        run: find build -name "DB Browser for SQL*.app" -exec /usr/local/opt/qt@5/bin/macdeployqt {} -sign-for-notarization="$DEV_ID" \;
+        run: find build -name "DB Browser for SQL*.app" -exec /opt/homebrew/opt/db4sqtub@5/bin/macdeployqt {} -sign-for-notarization="$DEV_ID" \;
       - name: Add the extension to the app bundle
         run: |
           for TARGET in $(find build -name "DB Browser for SQL*.app" | sed -e 's/ /_/g'); do
             TARGET=$(echo $TARGET | sed -e 's/_/ /g')
             mkdir "$TARGET/Contents/Extensions"
-            clang -I /usr/local/opt/sqlitefts5/include -L /usr/local/opt/sqlitefts5/lib -fno-common -dynamiclib src/extensions/extension-formats.c -o "$TARGET/Contents/Extensions/formats.dylib"
-            clang -I /usr/local/opt/sqlitefts5/include -L /usr/local/opt/sqlitefts5/lib -fno-common -dynamiclib src/extensions/extension-functions.c -o "$TARGET/Contents/Extensions/math.dylib"
+            clang -I /opt/homebrew/opt/db4ssqliteftsub@5/include -L /opt/homebrew/opt/db4ssqliteftsub@5/lib -fno-common -dynamiclib src/extensions/extension-formats.c -o "$TARGET/Contents/Extensions/formats.dylib"
+            clang -I /opt/homebrew/opt/db4ssqliteftsub@5/include -L /opt/homebrew/opt/db4ssqliteftsub@5/lib -fno-common -dynamiclib src/extensions/extension-functions.c -o "$TARGET/Contents/Extensions/math.dylib"
 
             if [ -f "$TARGET/Contents/Extensions/formats.dylib" ]; then
               install_name_tool -id "@executable_path/../Extensions/formats.dylib" "$TARGET/Contents/Extensions/formats.dylib"
@@ -190,7 +151,7 @@ jobs:
             curl -L -o src/extensions/fileio.c 'https://sqlite.org/src/raw?filename=ext/misc/fileio.c&ci=trunk'
             curl -L -o src/extensions/test_windirect.c 'https://sqlite.org/src/raw?filename=src/test_windirent.c&ci=trunk'
             curl -L -o src/extensions/test_windirect.h 'https://sqlite.org/src/raw?filename=src/test_windirent.h&ci=trunk'
-            clang -I /usr/local/opt/sqlitfts5/include -L /usr/local/opt/sqlitefts5/lib -fno-common -dynamiclib src/extensions/fileio.c src/extensions/test_windirect.c -o "$TARGET/Contents/Extensions/fileio.dylib"
+            clang -I /opt/homebrew/opt/db4ssqliteftsub@5/include -L /opt/homebrew/opt/db4ssqliteftsub@5/lib -fno-common -dynamiclib src/extensions/fileio.c src/extensions/test_windirect.c -o "$TARGET/Contents/Extensions/fileio.dylib"
 
             if [ -f "$TARGET/Contents/Extensions/fileio.dylib" ]; then
               install_name_tool -id "@executable_path/../Extensions/fileio.dylib" "$TARGET/Contents/Extensions/fileio.dylib"
@@ -210,11 +171,11 @@ jobs:
             TARGET=$(echo $TARGET | sed -e 's/_/ /g')
             mkdir "$TARGET/Contents/translations"
             for i in ar cs de en es fr it ko pl pt pt_BR ru uk zh_CN zh_TW; do
-              find /usr/local/opt/qt@5/translations -name "qt_${i}.qm" 2> /dev/null -exec cp -v {} "$TARGET/Contents/translations/" \;
-              find /usr/local/opt/qt@5/translations -name "qtbase_${i}.qm" 2> /dev/null -exec cp -v {} "$TARGET/Contents/translations/" \;
-              find /usr/local/opt/qt@5/translations -name "qtmultimedia_${i}.qm" 2> /dev/null -exec cp -v {} "$TARGET/Contents/translations/" \;
-              find /usr/local/opt/qt@5/translations -name "qtscript_${i}.qm" 2> /dev/null -exec cp -v {} "$TARGET/Contents/translations/" \;
-              find /usr/local/opt/qt@5/translations -name "qtxmlpatterns_${i}.qm" 2> /dev/null -exec cp -v {} "$TARGET/Contents/translations/" \;
+              find /opt/homebrew/opt/db4sqtub@5/translations -name "qt_${i}.qm" 2> /dev/null -exec cp -v {} "$TARGET/Contents/translations/" \;
+              find /opt/homebrew/opt/db4sqtub@5/translations -name "qtbase_${i}.qm" 2> /dev/null -exec cp -v {} "$TARGET/Contents/translations/" \;
+              find /opt/homebrew/opt/db4sqtub@5/translations -name "qtmultimedia_${i}.qm" 2> /dev/null -exec cp -v {} "$TARGET/Contents/translations/" \;
+              find /opt/homebrew/opt/db4sqtub@5/translations -name "qtscript_${i}.qm" 2> /dev/null -exec cp -v {} "$TARGET/Contents/translations/" \;
+              find /opt/homebrew/opt/db4sqtub@5/translations -name "qtxmlpatterns_${i}.qm" 2> /dev/null -exec cp -v {} "$TARGET/Contents/translations/" \;
             done 
           done
       - name: Copy the icon file to the app bundle
@@ -275,9 +236,6 @@ jobs:
         with:
           name: appbundle
           path: appbundle.tar
-      - name: Clear keychain
-        if: always()
-        run: security delete-keychain $RUNNER_TEMP/app-signing.keychain-db
   build-ubuntu:
     name: build (${{ matrix.os }} - SQLCipher ${{ matrix.sqlcipher }})
     runs-on: ${{ matrix.os }}
@@ -359,3 +317,4 @@ jobs:
           wget -c https://github.com/probonopd/uploadtool/raw/master/upload.sh
           chmod a+x upload.sh
           UPLOADTOOL_ISPRERELEASE=true ./upload.sh target/*
+
